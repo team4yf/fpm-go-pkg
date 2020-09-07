@@ -61,6 +61,18 @@ func StringToStruct(data string, desc interface{}) (err error) {
 	return
 }
 
+//Interface2Struct convert the json object to struct
+func Interface2Struct(j interface{}, dest interface{}) (err error) {
+	bytes, err := json.Marshal(j)
+	if err != nil {
+		return
+	}
+	if err = json.Unmarshal(bytes, dest); err != nil {
+		return
+	}
+	return
+}
+
 // GenShortID 生成一个id
 func GenShortID() string {
 	sid, _ := shortid.Generate()
