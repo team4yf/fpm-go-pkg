@@ -87,8 +87,8 @@ func PostJSON(url string, body []byte, timeout int) ResponseWrapper {
 	return post(url, "application/json", body, timeout, nil, nil)
 }
 
-//PostJSONWithHeade post a json data request with timeout
-func PostJSONWithHeade(url string, body []byte, timeout int, header map[string]string) ResponseWrapper {
+//PostJSONWithHeader post a json data request with timeout
+func PostJSONWithHeader(url string, body []byte, timeout int, header map[string]string) ResponseWrapper {
 	return post(url, "application/json", body, timeout, header, nil)
 }
 
