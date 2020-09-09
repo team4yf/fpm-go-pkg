@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -17,6 +18,19 @@ type ResponseWrapper struct {
 	Err        error
 	Body       []byte
 	Header     http.Header
+}
+
+type HTTPAuthType string
+type HTTPAuthData map[string]interface{}
+
+const (
+	TypeHTTPAuthBasic = "basic"
+)
+
+//HTTPAuth http auth struct
+type HTTPAuth struct {
+	Type HTTPAuthType
+	Data HTTPAuthData
 }
 
 //ConvertBody Convert the body to another struct
@@ -35,88 +49,110 @@ func (rsp *ResponseWrapper) GetStringBody() string {
 
 //Get send a get request with timeout
 func Get(url string, timeout int) ResponseWrapper {
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return createRequestError(err)
-	}
+	return get(url, timeout, nil, nil)
+}
 
-	return request(req, timeout)
+//GetWithAuth send a get request with timeout
+func GetWithAuth(url string, timeout int, auth *HTTPAuth) ResponseWrapper {
+	return get(url, timeout, nil, auth)
 }
 
 //GetWithHeader send a get request with header and timeout
-func GetWithHeader(url string, header map[string]string, timeout int) ResponseWrapper {
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return createRequestError(err)
-	}
-	for k, v := range header {
-		req.Header.Set(k, v)
-	}
+func GetWithHeader(url string, timeout int, header map[string]string) ResponseWrapper {
+	return get(url, timeout, header, nil)
+}
 
-	return request(req, timeout)
+//GetWithHeaderAndAuth send a get request with header and timeout
+func GetWithHeaderAndAuth(url string, timeout int, header map[string]string, auth *HTTPAuth) ResponseWrapper {
+	return get(url, timeout, header, auth)
 }
 
 //PostParams post a form request with timeout
 func PostParams(url string, params string, timeout int) ResponseWrapper {
-	buf := bytes.NewBufferString(params)
-	req, err := http.NewRequest("POST", url, buf)
-	if err != nil {
-		return createRequestError(err)
-	}
-	req.Header.Set("Content-type", "application/x-www-form-urlencoded")
+	return post(url, "application/x-www-form-urlencoded", []byte(params), timeout, nil, nil)
+}
 
-	return request(req, timeout)
+//PostParamsWithHeader post a form request with timeout
+func PostParamsWithHeader(url string, params string, timeout int, header map[string]string) ResponseWrapper {
+	return post(url, "application/x-www-form-urlencoded", []byte(params), timeout, header, nil)
+}
+
+//PostParamsWithHeaderAndAuth post a form request with timeout
+func PostParamsWithHeaderAndAuth(url string, params string, timeout int, header map[string]string, auth *HTTPAuth) ResponseWrapper {
+	return post(url, "application/x-www-form-urlencoded", []byte(params), timeout, header, auth)
 }
 
 //PostJSON post a json data request with timeout
 func PostJSON(url string, body []byte, timeout int) ResponseWrapper {
+	return post(url, "application/json", body, timeout, nil, nil)
+}
+
+//PostJSONWithHeade post a json data request with timeout
+func PostJSONWithHeade(url string, body []byte, timeout int, header map[string]string) ResponseWrapper {
+	return post(url, "application/json", body, timeout, header, nil)
+}
+
+//PostJSONWithHeaderAndAuth post a json data request with timeout
+func PostJSONWithHeaderAndAuth(url string, body []byte, timeout int, header map[string]string, auth *HTTPAuth) ResponseWrapper {
+	return post(url, "application/json", body, timeout, header, auth)
+}
+
+//post post json & header with timeout
+func post(url, contentType string, body []byte, timeout int, header map[string]string, auth *HTTPAuth) ResponseWrapper {
 	buf := bytes.NewBuffer(body)
 	req, err := http.NewRequest("POST", url, buf)
 	if err != nil {
 		return createRequestError(err)
 	}
-	req.Header.Set("Content-type", "application/json")
-
-	return request(req, timeout)
+	req.Header.Set("Content-Type", contentType)
+	if header != nil {
+		for k, v := range header {
+			req.Header.Set(k, v)
+		}
+	}
+	return request(req, timeout, auth)
 }
 
-//PostJSONWithHeader post json & header with timeout
-func PostJSONWithHeader(url string, header map[string]string, body []byte, timeout int) ResponseWrapper {
-	buf := bytes.NewBuffer(body)
-	req, err := http.NewRequest("POST", url, buf)
+func get(url string, timeout int, header map[string]string, auth *HTTPAuth) ResponseWrapper {
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return createRequestError(err)
 	}
-	req.Header.Set("Content-type", "application/json")
-	for k, v := range header {
-		req.Header.Set(k, v)
+	if header != nil {
+		for k, v := range header {
+			req.Header.Set(k, v)
+		}
 	}
 
-	return request(req, timeout)
+	return request(req, timeout, auth)
 }
 
-func request(req *http.Request, timeout int) ResponseWrapper {
-	wrapper := ResponseWrapper{StatusCode: 0, Success: false}
+func request(req *http.Request, timeout int, auth *HTTPAuth) ResponseWrapper {
+	wrapper := ResponseWrapper{StatusCode: 0, Header: make(http.Header)}
 	client := &http.Client{}
 	if timeout > 0 {
 		client.Timeout = time.Duration(timeout) * time.Second
 	}
 	setRequestHeader(req)
+	if auth != nil {
+		switch auth.Type {
+		case TypeHTTPAuthBasic:
+			req.SetBasicAuth(auth.Data["username"].(string), auth.Data["password"].(string))
+		}
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
-		wrapper.Err = errors.Wrap(err, "执行HTTP请求错误")
+		wrapper.Err = fmt.Errorf("执行HTTP请求错误-%s", err.Error())
 		return wrapper
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		wrapper.Err = errors.Wrap(err, "读取HTTP请求返回值失败")
+		wrapper.Err = fmt.Errorf("读取HTTP请求返回值失败-%s", err.Error())
 		return wrapper
 	}
 	wrapper.StatusCode = resp.StatusCode
-	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
-		wrapper.Success = true
-	}
 	wrapper.Body = body
 	wrapper.Header = resp.Header
 
