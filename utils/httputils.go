@@ -153,6 +153,8 @@ func request(req *http.Request, timeout int, auth *HTTPAuth) ResponseWrapper {
 		return wrapper
 	}
 	wrapper.StatusCode = resp.StatusCode
+	wrapper.Success = wrapper.StatusCode >= 200 && wrapper.StatusCode < 400
+
 	wrapper.Body = body
 	wrapper.Header = resp.Header
 
