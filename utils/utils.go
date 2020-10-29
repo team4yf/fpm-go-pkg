@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/google/uuid"
@@ -21,7 +22,23 @@ type RespJSON struct {
 var (
 	once     sync.Once
 	clientIP = "127.0.0.1"
+	hostname = "localhost"
 )
+
+func init() {
+	once.Do(func() {
+		ips, _ := tnet.IntranetIP()
+		if len(ips) > 0 {
+			clientIP = ips[0]
+		} else {
+			clientIP = "127.0.0.1"
+		}
+		if hname, err := os.Hostname(); err == nil {
+			hostname = hname
+		}
+
+	})
+}
 
 //CheckErr panic if err is not nil
 func CheckErr(err error) {
@@ -32,15 +49,12 @@ func CheckErr(err error) {
 
 // GetLocalIP 获取本地内网IP
 func GetLocalIP() string {
-	once.Do(func() {
-		ips, _ := tnet.IntranetIP()
-		if len(ips) > 0 {
-			clientIP = ips[0]
-		} else {
-			clientIP = "127.0.0.1"
-		}
-	})
 	return clientIP
+}
+
+// GetHostname 获取本机的hostname
+func GetHostname() string {
+	return hostname
 }
 
 //JSON2String convert the json object to string
